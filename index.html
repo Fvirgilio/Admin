@@ -1,188 +1,180 @@
+---
+layout: default
+title: Página de Escaneos
+---
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Página de Escaneos</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f2f2f2;
-            display: flex;
-            height: 100vh;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-        }
-        #login-container, #scans-container {
-            background-color: #fff;
-            padding: 20px 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        #login-container h2, #scans-container h2 {
-            margin-top: 0;
-            text-align: center;
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0 16px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        button {
-            width: 100%;
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 16px;
-        }
-        th, td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #4CAF50;
-            color: white;
-        }
-        #error-message {
-            color: red;
-            text-align: center;
-            margin-bottom: 16px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Página de Escaneos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      padding: 20px;
+    }
+    #login-container, #scans-container {
+      max-width: 400px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+      text-align: center;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0 16px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    .scan-item {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .scan-id {
+      font-weight: bold;
+    }
+    .scan-timestamp {
+      color: #555;
+      font-size: 0.9em;
+    }
+  </style>
 </head>
 <body>
 
-    <!-- Contenedor de Login -->
-    <div id="login-container">
-        <h2>Iniciar Sesión</h2>
-        <div id="error-message"></div>
-        <input type="text" id="username" placeholder="Usuario">
-        <input type="password" id="password" placeholder="Contraseña">
-        <button onclick="login()">Entrar</button>
+  <!-- Contenedor de Login -->
+  <div id="login-container">
+    <h2>Iniciar Sesión</h2>
+    <form id="login-form">
+      <label for="username">Usuario:</label>
+      <input type="text" id="username" name="username" required placeholder="admin">
+      
+      <label for="password">Contraseña:</label>
+      <input type="password" id="password" name="password" required placeholder="admin">
+      
+      <button type="submit">Entrar</button>
+    </form>
+    <p id="login-error" style="color: red; display: none;">Usuario o contraseña incorrectos.</p>
+  </div>
+
+  <!-- Contenedor de Scans -->
+  <div id="scans-container" style="display: none;">
+    <h2>Escaneos</h2>
+    <div id="scans-list">
+      <!-- Los escaneos se cargarán aquí -->
     </div>
+    <button id="logout-button" style="margin-top: 20px; background-color: #f44336;">Cerrar Sesión</button>
+  </div>
 
-    <!-- Contenedor de Escaneos -->
-    <div id="scans-container" style="display:none;">
-        <h2>Escaneos Recientes</h2>
-        <table id="scans-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Fecha y Hora</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Los escaneos se insertarán aquí dinámicamente -->
-            </tbody>
-        </table>
-        <button onclick="logout()" style="margin-top: 20px; background-color: #f44336;">Cerrar Sesión</button>
-    </div>
+  <script>
+    // Configuración de Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyD3NeE_fXUivRwXoz3c1NwyfnzRx1Xfmag",
+      authDomain: "qrtrashy.firebaseapp.com",
+      projectId: "qrtrashy",
+      storageBucket: "qrtrashy.appspot.com",
+      messagingSenderId: "986627738409",
+      appId: "1:986627738409:web:03e8dee1c88ab1d6b9dd5f"
+    };
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-    <script>
-        // Configuración de Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyD3NeE_fXUivRwXoz3c1NwyfnzRx1Xfmag",
-            authDomain: "qrtrashy.firebaseapp.com",
-            projectId: "qrtrashy",
-            storageBucket: "qrtrashy.appspot.com",
-            messagingSenderId: "986627738409",
-            appId: "1:986627738409:web:03e8dee1c88ab1d6b9dd5f"
-        };
+    // Elementos del DOM
+    const loginContainer = document.getElementById('login-container');
+    const scansContainer = document.getElementById('scans-container');
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const scansList = document.getElementById('scans-list');
+    const logoutButton = document.getElementById('logout-button');
 
-        // Inicializar Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+    // Manejar el login
+    loginForm.addEventListener('submit', function(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
 
-        // Función de Login
-        function login() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const errorMessage = document.getElementById('error-message');
+      if (username === 'admin' && password === 'admin') {
+        loginContainer.style.display = 'none';
+        scansContainer.style.display = 'block';
+        fetchScans();
+      } else {
+        loginError.style.display = 'block';
+      }
+    });
 
-            if (username === 'admin' && password === 'admin') {
-                document.getElementById('login-container').style.display = 'none';
-                document.getElementById('scans-container').style.display = 'block';
-                fetchScans();
-            } else {
-                errorMessage.textContent = 'Usuario o contraseña incorrectos.';
-            }
-        }
+    // Manejar el logout
+    logoutButton.addEventListener('click', function() {
+      scansContainer.style.display = 'none';
+      loginContainer.style.display = 'block';
+      scansList.innerHTML = '';
+      loginForm.reset();
+      loginError.style.display = 'none';
+    });
 
-        // Función de Logout
-        function logout() {
-            document.getElementById('scans-container').style.display = 'none';
-            document.getElementById('login-container').style.display = 'block';
-            document.getElementById('username').value = '';
-            document.getElementById('password').value = '';
-            document.getElementById('error-message').textContent = '';
-            document.getElementById('scans-table').getElementsByTagName('tbody')[0].innerHTML = '';
-        }
+    // Función para obtener y mostrar los scans
+    function fetchScans() {
+      const scansRef = database.ref('scans/admin@admin,com');
+      scansRef.once('value')
+        .then((snapshot) => {
+          const scansData = snapshot.val();
+          if (scansData) {
+            const scansArray = Object.values(scansData);
+            // Ordenar por timestamp descendente
+            scansArray.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            // Limpiar la lista
+            scansList.innerHTML = '';
+            // Crear elementos para cada scan
+            scansArray.forEach(scan => {
+              const scanDiv = document.createElement('div');
+              scanDiv.className = 'scan-item';
+              
+              const idDiv = document.createElement('div');
+              idDiv.className = 'scan-id';
+              idDiv.textContent = `ID: ${scan.id}`;
+              
+              const timestampDiv = document.createElement('div');
+              timestampDiv.className = 'scan-timestamp';
+              const date = new Date(scan.timestamp);
+              timestampDiv.textContent = `Fecha: ${date.toLocaleString()}`;
+              
+              scanDiv.appendChild(idDiv);
+              scanDiv.appendChild(timestampDiv);
+              
+              scansList.appendChild(scanDiv);
+            });
+          } else {
+            scansList.innerHTML = '<p>No hay escaneos disponibles.</p>';
+          }
+        })
+        .catch((error) => {
+          console.error('Error al obtener los escaneos:', error);
+          scansList.innerHTML = '<p>Error al cargar los escaneos.</p>';
+        });
+    }
+  </script>
 
-        // Función para Formatear Timestamp
-        function formatTimestamp(timestamp) {
-            const date = new Date(timestamp);
-            return date.toLocaleString();
-        }
-
-        // Función para Obtener y Mostrar Escaneos
-        function fetchScans() {
-            // Referencia a la base de datos
-            const scansRef = database.ref('scans');
-
-            scansRef.once('value')
-                .then((snapshot) => {
-                    const data = snapshot.val();
-                    const scansList = [];
-
-                    for (const user in data) {
-                        for (const scanKey in data[user]) {
-                            const scan = data[user][scanKey];
-                            scansList.push({
-                                id: scan.id,
-                                timestamp: scan.timestamp
-                            });
-                        }
-                    }
-
-                    // Ordenar los escaneos por timestamp descendente
-                    scansList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-                    // Insertar en la tabla
-                    const tbody = document.getElementById('scans-table').getElementsByTagName('tbody')[0];
-                    scansList.forEach(scan => {
-                        const row = tbody.insertRow();
-                        const cellId = row.insertCell(0);
-                        const cellTimestamp = row.insertCell(1);
-
-                        cellId.textContent = scan.id;
-                        cellTimestamp.textContent = formatTimestamp(scan.timestamp);
-                    });
-
-                    // Manejo de IDs llenas (según tu estructura, los IDs ya están llenos)
-                    // Si necesitas verificar que los IDs no estén vacíos, puedes añadir lógica adicional aquí.
-                })
-                .catch((error) => {
-                    console.error('Error al obtener los escaneos:', error);
-                });
-        }
-    </script>
 </body>
 </html>
