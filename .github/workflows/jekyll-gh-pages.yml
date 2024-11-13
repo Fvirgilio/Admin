@@ -1,0 +1,37 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main  # Cambia esto si tu rama principal tiene otro nombre
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Paso 1: Clonar el repositorio
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # Paso 2: Configurar Git
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Paso 3: Preparar el directorio de publicación
+      - name: Prepare Deployment Directory
+        run: |
+          mkdir -p public
+          cp -r * public
+          rm -rf public/.github
+
+      # Paso 4: Desplegar en GitHub Pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          # Si deseas desplegar en una rama específica, descomenta y ajusta la siguiente línea
+          # publish_branch: gh-pages
