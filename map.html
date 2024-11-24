@@ -69,6 +69,18 @@
     #logout-button:hover {
       background-color: #da190b;
     }
+    /* Estilo para el punto de inicio */
+    .start-marker {
+      background-color: blue;
+      border-radius: 50%;
+      width: 12px;
+      height: 12px;
+      display: block;
+      position: relative;
+      left: -6px;
+      top: -6px;
+      border: 2px solid white;
+    }
   </style>
 </head>
 <body>
@@ -107,6 +119,9 @@
       // Agrega más mappings según tus necesidades
     };
 
+    // Punto de inicio fijo
+    const startPoint = { lat: -20.21713047887565, lng: -70.1489335373898 };
+
     let map;
     let markers = [];
     let routeControl = null;
@@ -140,14 +155,22 @@
 
     // Función para inicializar el mapa
     function initializeMap() {
-      // Crear el mapa centrado en una ubicación predeterminada
-      map = L.map('map').setView([-20.24637570539346, -70.12831954907416], 15);
+      // Crear el mapa centrado en el punto de inicio
+      map = L.map('map').setView([startPoint.lat, startPoint.lng], 14);
 
       // Agregar capa de OpenStreetMap
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© OpenStreetMap'
       }).addTo(map);
+
+      // Agregar marcador para el punto de inicio
+      const startMarker = L.marker([startPoint.lat, startPoint.lng], {
+        icon: L.divIcon({
+          className: 'start-marker'
+        }),
+        title: 'Punto de Inicio'
+      }).addTo(map).bindPopup('Punto de Inicio');
 
       // Recuperar las IDs de los escaneos desde localStorage
       const scanIDs = JSON.parse(localStorage.getItem('scanIDs')) || [];
@@ -176,6 +199,7 @@
 
       // Ajustar la vista del mapa para mostrar todos los marcadores
       const group = new L.featureGroup(markers);
+      group.addLayer(startMarker);
       map.fitBounds(group.getBounds().pad(0.5));
     }
 
@@ -187,7 +211,19 @@
       }
 
       // Extraer las coordenadas de los marcadores
-      const waypoints = markers.map(marker => L.latLng(marker.getLatLng().lat, marker.getLatLng().lng));
+      const scannedPoints = markers.map(marker => {
+        const latlng = marker.getLatLng();
+        return { lat: latlng.lat, lng: latlng.lng };
+      });
+
+      // Ordenar los puntos escaneados por latitud (de menor a mayor)
+      scannedPoints.sort((a, b) => a.lat - b.lat);
+
+      // Definir los waypoints: punto de inicio + puntos escaneados ordenados
+      const waypoints = [
+        L.latLng(startPoint.lat, startPoint.lng),
+        ...scannedPoints.map(point => L.latLng(point.lat, point.lng))
+      ];
 
       // Si ya existe una ruta, eliminarla
       if (routeControl) {
