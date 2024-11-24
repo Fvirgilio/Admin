@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mapa de Escaneos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+    integrity="sha256-sA+ePHnQ2UMm61MnWHjwxXcHq3HTjFQ3ZjtaPYgEujw="
+    crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha256-DvYvpuvJmFZrO+jQTRWwDL1jM0zxJ5i4vRZOyHjv8eM="
+    crossorigin=""></script>
+  <!-- Leaflet Routing Machine CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #map {
+      height: 80vh;
+      width: 100%;
+    }
+    #controls {
+      padding: 10px;
+      text-align: center;
+      background-color: #f0f0f0;
+    }
+    #armar-ruta-button, #logout-button {
+      padding: 10px 20px;
+      margin: 5px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #armar-ruta-button:hover {
+      background-color: #45a049;
+    }
+    #logout-button {
+      background-color: #f44336;
+    }
+    #logout-button:hover {
+      background-color: #da190b;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="controls">
+    <button id="armar-ruta-button">Armar ruta</button>
+    <button id="logout-button">Cerrar Sesión</button>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    // Configuración de Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyD3NeE_fXUivRwXoz3c1NwyfnzRx1Xfmag",
+      authDomain: "qrtrashy.firebaseapp.com",
+      projectId: "qrtrashy",
+      storageBucket: "qrtrashy.appspot.com",
+      messagingSenderId: "986627738409",
+      appId: "1:986627738409:web:03e8dee1c88ab1d6b9dd5f"
+    };
+
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const database = firebase.database();
+
+    // Elementos del DOM
+    const armarRutaButton = document.getElementById('armar-ruta-button');
+    const logoutButton = document.getElementById('logout-button');
+
+    // Verificar la autenticación y que sea admin
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        if (user.email.toLowerCase() !== 'admin@admin.com') {
+          // Si no es admin, redirigir a index.html
+          alert('Acceso denegado. Solo el administrador puede acceder a esta página.');
+          window.location.href = 'index.html';
+        } else {
+          // Cargar el mapa
+          initializeMap();
+        }
+      } else {
+        // Si no está autenticado, redirigir a index.html
+        alert('Por favor, inicia sesión primero.');
+        window.location.href = 'index.html';
+      }
+    });
+
+    // Manejar el logout
+    logoutButton.addEventListener('click', function() {
+      auth.signOut().then(() => {
+        window.location.href = 'index.html';
+      }).catch((error) => {
+        console.error('Error al cerrar sesión:', error);
+      });
+    });
+
+    // Diccionario para mapear IDs a coordenadas
+    const idToCoordinates = {
+      "12121212": { lat: -20.24637570539346, lng: -70.12831954907416 },
+      "19991999": { lat: -20.219993105833403, lng: -70.13896236034685 },
+      "13371337": { lat: -20.210998981315534, lng: -70.14314459561021 },
+      // Agrega más mappings según tus necesidades
+    };
+
+    let map;
+    let markers = [];
+    let routeControl = null;
+
+    // Función para inicializar el mapa
+    function initializeMap() {
+      // Crear el mapa centrado en una ubicación predeterminada
+      map = L.map('map').setView([-20.24637570539346, -70.12831954907416], 15);
+
+      // Agregar capa de OpenStreetMap
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      // Recuperar las IDs de los escaneos desde localStorage
+      const scanIDs = JSON.parse(localStorage.getItem('scanIDs')) || [];
+
+      if (scanIDs.length === 0) {
+        alert('No hay IDs de escaneos para mostrar en el mapa.');
+        return;
+      }
+
+      // Convertir las IDs a coordenadas y agregar marcadores
+      scanIDs.forEach(id => {
+        const coords = idToCoordinates[id];
+        if (coords) {
+          const marker = L.marker([coords.lat, coords.lng]).addTo(map)
+            .bindPopup(`ID: ${id}<br>Coordenadas: ${coords.lat}, ${coords.lng}`);
+          markers.push(marker);
+        } else {
+          console.warn(`No se encontraron coordenadas para la ID: ${id}`);
+        }
+      });
+
+      // Ajustar la vista del mapa para mostrar todos los marcadores
+      const group = new L.featureGroup(markers);
+      map.fitBounds(group.getBounds().pad(0.5));
+    }
+
+    // Manejar el clic en "Armar ruta"
+    armarRutaButton.addEventListener('click', function() {
+      if (markers.length === 0) {
+        alert('No hay puntos en el mapa para crear una ruta.');
+        return;
+      }
+
+      // Extraer las coordenadas de los marcadores
+      const waypoints = markers.map(marker => L.latLng(marker.getLatLng().lat, marker.getLatLng().lng));
+
+      // Si ya existe una ruta, eliminarla
+      if (routeControl) {
+        map.removeControl(routeControl);
+      }
+
+      // Crear la ruta utilizando Leaflet Routing Machine
+      routeControl = L.Routing.control({
+        waypoints: waypoints,
+        routeWhileDragging: false,
+        show: false,
+        addWaypoints: false,
+        draggableWaypoints: false,
+        fitSelectedRoutes: true,
+        lineOptions: {
+          styles: [{ color: '#4CAF50', weight: 4 }]
+        },
+        createMarker: function(i, waypoint, n) {
+          return L.marker(waypoint.latLng, {
+            icon: L.icon({
+              iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png',
+              shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
+              iconAnchor: [12, 41],
+              popupAnchor: [1, -34],
+              shadowSize: [41, 41]
+            })
+          }).bindPopup(`Punto ${i + 1}`);
+        }
+      }).addTo(map);
+    });
+  </script>
+
+</body>
+</html>
