@@ -1,5 +1,5 @@
 ---
-layout: default
+layout: default 
 title: Página de Escaneos
 ---
 
@@ -64,6 +64,14 @@ title: Página de Escaneos
       background-color: #f44336;
       margin-top: 20px;
     }
+    /* Estilo para el botón "Visualizar mapa" */
+    #view-map-button {
+      background-color: #2196F3;
+      margin-top: 20px;
+    }
+    #view-map-button:hover {
+      background-color: #0b7dda;
+    }
   </style>
 </head>
 <body>
@@ -89,6 +97,8 @@ title: Página de Escaneos
     <div id="scans-list">
       <!-- Los escaneos se cargarán aquí -->
     </div>
+    <!-- Botón para visualizar el mapa (solo para admin) -->
+    <button id="view-map-button" style="display: none;">Visualizar mapa</button>
     <button id="logout-button">Cerrar Sesión</button>
   </div>
 
@@ -115,6 +125,7 @@ title: Página de Escaneos
     const loginError = document.getElementById('login-error');
     const scansList = document.getElementById('scans-list');
     const logoutButton = document.getElementById('logout-button');
+    const viewMapButton = document.getElementById('view-map-button');
 
     // Manejar el login
     loginForm.addEventListener('submit', function(event) {
@@ -143,6 +154,7 @@ title: Página de Escaneos
         scansList.innerHTML = '';
         loginForm.reset();
         loginError.style.display = 'none';
+        viewMapButton.style.display = 'none';
       }).catch((error) => {
         console.error('Error al cerrar sesión:', error);
       });
@@ -189,13 +201,26 @@ title: Página de Escaneos
                 
                 scansList.appendChild(scanDiv);
               });
+              // Mostrar el botón "Visualizar mapa"
+              viewMapButton.style.display = 'block';
+              // Agregar evento al botón
+              viewMapButton.addEventListener('click', function() {
+                // Obtener todas las IDs
+                const scanIDs = allScans.map(scan => scan.id);
+                // Almacenar en localStorage
+                localStorage.setItem('scanIDs', JSON.stringify(scanIDs));
+                // Redirigir a map.html
+                window.location.href = 'map.html';
+              });
             } else {
               scansList.innerHTML = '<p>No hay escaneos disponibles.</p>';
+              viewMapButton.style.display = 'none';
             }
           })
           .catch((error) => {
             console.error('Error al obtener los escaneos:', error);
             scansList.innerHTML = '<p>Error al cargar los escaneos.</p>';
+            viewMapButton.style.display = 'none';
           });
       } else {
         // Si no es admin, obtener solo sus escaneos
@@ -229,13 +254,17 @@ title: Página de Escaneos
                 
                 scansList.appendChild(scanDiv);
               });
+              // No mostrar el botón "Visualizar mapa" para usuarios no admin
+              viewMapButton.style.display = 'none';
             } else {
               scansList.innerHTML = '<p>No hay escaneos disponibles.</p>';
+              viewMapButton.style.display = 'none';
             }
           })
           .catch((error) => {
             console.error('Error al obtener los escaneos:', error);
             scansList.innerHTML = '<p>Error al cargar los escaneos.</p>';
+            viewMapButton.style.display = 'none';
           });
       }
     }
