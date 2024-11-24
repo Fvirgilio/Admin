@@ -203,6 +203,43 @@
       map.fitBounds(group.getBounds().pad(0.5));
     }
 
+    // Función para calcular la distancia Euclidiana entre dos puntos
+    function calculateDistance(pointA, pointB) {
+      const latDiff = pointA.lat - pointB.lat;
+      const lngDiff = pointA.lng - pointB.lng;
+      return Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+    }
+
+    // Función para ordenar los puntos usando el algoritmo de Vecino Más Cercano
+    function nearestNeighbor(start, points) {
+      const ordered = [];
+      const remaining = points.slice(); // Copia de los puntos
+      let currentPoint = start;
+
+      while (remaining.length > 0) {
+        // Encontrar el punto más cercano al punto actual
+        let nearest = remaining[0];
+        let minDist = calculateDistance(currentPoint, nearest);
+
+        for (let i = 1; i < remaining.length; i++) {
+          const dist = calculateDistance(currentPoint, remaining[i]);
+          if (dist < minDist) {
+            nearest = remaining[i];
+            minDist = dist;
+          }
+        }
+
+        // Añadir el punto más cercano a la ruta ordenada
+        ordered.push(nearest);
+        // Eliminar el punto de los puntos restantes
+        remaining.splice(remaining.indexOf(nearest), 1);
+        // Actualizar el punto actual
+        currentPoint = nearest;
+      }
+
+      return ordered;
+    }
+
     // Manejar el clic en "Armar ruta"
     armarRutaButton.addEventListener('click', function() {
       if (markers.length === 0) {
@@ -216,13 +253,13 @@
         return { lat: latlng.lat, lng: latlng.lng };
       });
 
-      // Ordenar los puntos escaneados por latitud (de menor a mayor)
-      scannedPoints.sort((a, b) => a.lat - b.lat);
+      // Ordenar los puntos escaneados usando el algoritmo de Vecino Más Cercano
+      const orderedPoints = nearestNeighbor(startPoint, scannedPoints);
 
       // Definir los waypoints: punto de inicio + puntos escaneados ordenados
       const waypoints = [
         L.latLng(startPoint.lat, startPoint.lng),
-        ...scannedPoints.map(point => L.latLng(point.lat, point.lng))
+        ...orderedPoints.map(point => L.latLng(point.lat, point.lng))
       ];
 
       // Si ya existe una ruta, eliminarla
