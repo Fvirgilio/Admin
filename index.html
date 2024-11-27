@@ -1,8 +1,3 @@
----
-layout: default 
-title: Página de Escaneos
----
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -20,7 +15,7 @@ title: Página de Escaneos
       padding: 20px;
     }
     #login-container, #scans-container {
-      max-width: 600px;
+      max-width: 800px;
       margin: auto;
       background: white;
       padding: 20px;
@@ -45,6 +40,7 @@ title: Página de Escaneos
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 16px;
     }
     button:hover {
       background-color: #45a049;
@@ -52,6 +48,13 @@ title: Página de Escaneos
     .scan-item {
       padding: 10px;
       border-bottom: 1px solid #ddd;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .scan-details {
+      display: flex;
+      flex-direction: column;
     }
     .scan-id {
       font-weight: bold;
@@ -60,17 +63,39 @@ title: Página de Escaneos
       color: #555;
       font-size: 0.9em;
     }
+    .scan-email {
+      color: #333;
+      font-size: 0.9em;
+    }
     #logout-button {
       background-color: #f44336;
       margin-top: 20px;
+      font-size: 16px;
+    }
+    #logout-button:hover {
+      background-color: #da190b;
     }
     /* Estilo para el botón "Visualizar mapa" */
     #view-map-button {
       background-color: #2196F3;
       margin-top: 20px;
+      font-size: 16px;
     }
     #view-map-button:hover {
       background-color: #0b7dda;
+    }
+    /* Responsive */
+    @media (max-width: 600px) {
+      .scan-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .scan-details {
+        margin-bottom: 10px;
+      }
+      button {
+        font-size: 14px;
+      }
     }
   </style>
 </head>
@@ -97,7 +122,7 @@ title: Página de Escaneos
     <div id="scans-list">
       <!-- Los escaneos se cargarán aquí -->
     </div>
-    <!-- Botón para visualizar el mapa (solo para admin) -->
+    <!-- Botones -->
     <button id="view-map-button" style="display: none;">Visualizar mapa</button>
     <button id="logout-button">Cerrar Sesión</button>
   </div>
@@ -107,6 +132,7 @@ title: Página de Escaneos
     const firebaseConfig = {
       apiKey: "AIzaSyD3NeE_fXUivRwXoz3c1NwyfnzRx1Xfmag",
       authDomain: "qrtrashy.firebaseapp.com",
+      databaseURL: "https://qrtrashy-default-rtdb.firebaseio.com/",
       projectId: "qrtrashy",
       storageBucket: "qrtrashy.appspot.com",
       messagingSenderId: "986627738409",
@@ -126,6 +152,15 @@ title: Página de Escaneos
     const scansList = document.getElementById('scans-list');
     const logoutButton = document.getElementById('logout-button');
     const viewMapButton = document.getElementById('view-map-button');
+
+    // Función para obtener la fecha actual en formato YYYY-MM-DD
+    function getCurrentDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
 
     // Manejar el login
     loginForm.addEventListener('submit', function(event) {
@@ -164,54 +199,84 @@ title: Página de Escaneos
     function fetchScans(email) {
       const isAdmin = (email.toLowerCase() === 'admin@admin.com');
       if (isAdmin) {
-        // Si es admin, obtener todos los escaneos
+        // Obtener todos los escaneos
         const scansRef = database.ref('scans');
         scansRef.once('value')
           .then((snapshot) => {
             const scansData = snapshot.val();
             if (scansData) {
-              let allScans = [];
+              const currentDate = getCurrentDate();
+              let todayScans = [];
+
               // Iterar sobre cada usuario
               Object.keys(scansData).forEach(userKey => {
+                const userEmail = userKey.replace(/,/g, '.'); // Convertir ',' de vuelta a '.'
                 const userScans = scansData[userKey];
                 Object.values(userScans).forEach(scan => {
-                  allScans.push(scan);
+                  const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+                  if (scanDate === currentDate) {
+                    todayScans.push({
+                      id: scan.id,
+                      timestamp: scan.timestamp,
+                      email: userEmail
+                    });
+                  }
                 });
               });
-              // Ordenar por timestamp descendente
-              allScans.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-              // Limpiar la lista
-              scansList.innerHTML = '';
-              // Crear elementos para cada scan
-              allScans.forEach(scan => {
-                const scanDiv = document.createElement('div');
-                scanDiv.className = 'scan-item';
-                
-                const idDiv = document.createElement('div');
-                idDiv.className = 'scan-id';
-                idDiv.textContent = `ID: ${scan.id}`;
-                
-                const timestampDiv = document.createElement('div');
-                timestampDiv.className = 'scan-timestamp';
-                const date = new Date(scan.timestamp);
-                timestampDiv.textContent = `Fecha: ${date.toLocaleString()}`;
-                
-                scanDiv.appendChild(idDiv);
-                scanDiv.appendChild(timestampDiv);
-                
-                scansList.appendChild(scanDiv);
-              });
-              // Mostrar el botón "Visualizar mapa"
-              viewMapButton.style.display = 'block';
-              // Agregar evento al botón
-              viewMapButton.addEventListener('click', function() {
-                // Obtener todas las IDs
-                const scanIDs = allScans.map(scan => scan.id);
-                // Almacenar en localStorage
-                localStorage.setItem('scanIDs', JSON.stringify(scanIDs));
-                // Redirigir a map.html
-                window.location.href = 'map.html';
-              });
+
+              if (todayScans.length > 0) {
+                // Ordenar por timestamp descendente
+                todayScans.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                // Limpiar la lista
+                scansList.innerHTML = '';
+
+                // Crear elementos para cada scan
+                todayScans.forEach(scan => {
+                  const scanDiv = document.createElement('div');
+                  scanDiv.className = 'scan-item';
+
+                  const scanDetailsDiv = document.createElement('div');
+                  scanDetailsDiv.className = 'scan-details';
+
+                  const idDiv = document.createElement('div');
+                  idDiv.className = 'scan-id';
+                  idDiv.textContent = `ID: ${scan.id}`;
+
+                  const timestampDiv = document.createElement('div');
+                  timestampDiv.className = 'scan-timestamp';
+                  const date = new Date(scan.timestamp);
+                  timestampDiv.textContent = `Fecha: ${date.toLocaleString()}`;
+
+                  const emailDiv = document.createElement('div');
+                  emailDiv.className = 'scan-email';
+                  emailDiv.textContent = `Email: ${scan.email}`;
+
+                  scanDetailsDiv.appendChild(idDiv);
+                  scanDetailsDiv.appendChild(timestampDiv);
+                  scanDetailsDiv.appendChild(emailDiv);
+
+                  scanDiv.appendChild(scanDetailsDiv);
+                  scansList.appendChild(scanDiv);
+                });
+
+                // Mostrar el botón "Visualizar mapa"
+                viewMapButton.style.display = 'block';
+
+                // Agregar evento al botón (asegurarse de que solo se añade una vez)
+                viewMapButton.onclick = function() {
+                  // Obtener todas las IDs
+                  const scanIDs = todayScans.map(scan => scan.id);
+                  console.log('scanIDs:', scanIDs); // Para depuración
+                  // Almacenar en localStorage
+                  localStorage.setItem('scanIDs', JSON.stringify(scanIDs));
+                  // Redirigir a map.html
+                  window.location.href = 'map.html';
+                };
+              } else {
+                scansList.innerHTML = '<p>No hay escaneos disponibles para hoy.</p>';
+                viewMapButton.style.display = 'none';
+              }
             } else {
               scansList.innerHTML = '<p>No hay escaneos disponibles.</p>';
               viewMapButton.style.display = 'none';
@@ -230,32 +295,62 @@ title: Página de Escaneos
           .then((snapshot) => {
             const scansData = snapshot.val();
             if (scansData) {
-              const scansArray = Object.values(scansData);
-              // Ordenar por timestamp descendente
-              scansArray.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-              // Limpiar la lista
-              scansList.innerHTML = '';
-              // Crear elementos para cada scan
-              scansArray.forEach(scan => {
-                const scanDiv = document.createElement('div');
-                scanDiv.className = 'scan-item';
-                
-                const idDiv = document.createElement('div');
-                idDiv.className = 'scan-id';
-                idDiv.textContent = `ID: ${scan.id}`;
-                
-                const timestampDiv = document.createElement('div');
-                timestampDiv.className = 'scan-timestamp';
-                const date = new Date(scan.timestamp);
-                timestampDiv.textContent = `Fecha: ${date.toLocaleString()}`;
-                
-                scanDiv.appendChild(idDiv);
-                scanDiv.appendChild(timestampDiv);
-                
-                scansList.appendChild(scanDiv);
+              const currentDate = getCurrentDate();
+              const todayScans = [];
+
+              Object.values(scansData).forEach(scan => {
+                const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+                if (scanDate === currentDate) {
+                  todayScans.push({
+                    id: scan.id,
+                    timestamp: scan.timestamp,
+                    email: email
+                  });
+                }
               });
-              // No mostrar el botón "Visualizar mapa" para usuarios no admin
-              viewMapButton.style.display = 'none';
+
+              if (todayScans.length > 0) {
+                // Ordenar por timestamp descendente
+                todayScans.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                // Limpiar la lista
+                scansList.innerHTML = '';
+
+                // Crear elementos para cada scan
+                todayScans.forEach(scan => {
+                  const scanDiv = document.createElement('div');
+                  scanDiv.className = 'scan-item';
+
+                  const scanDetailsDiv = document.createElement('div');
+                  scanDetailsDiv.className = 'scan-details';
+
+                  const idDiv = document.createElement('div');
+                  idDiv.className = 'scan-id';
+                  idDiv.textContent = `ID: ${scan.id}`;
+
+                  const timestampDiv = document.createElement('div');
+                  timestampDiv.className = 'scan-timestamp';
+                  const date = new Date(scan.timestamp);
+                  timestampDiv.textContent = `Fecha: ${date.toLocaleString()}`;
+
+                  const emailDiv = document.createElement('div');
+                  emailDiv.className = 'scan-email';
+                  emailDiv.textContent = `Email: ${scan.email}`;
+
+                  scanDetailsDiv.appendChild(idDiv);
+                  scanDetailsDiv.appendChild(timestampDiv);
+                  scanDetailsDiv.appendChild(emailDiv);
+
+                  scanDiv.appendChild(scanDetailsDiv);
+                  scansList.appendChild(scanDiv);
+                });
+
+                // No mostrar el botón "Visualizar mapa" para usuarios no admin
+                viewMapButton.style.display = 'none';
+              } else {
+                scansList.innerHTML = '<p>No hay escaneos disponibles para hoy.</p>';
+                viewMapButton.style.display = 'none';
+              }
             } else {
               scansList.innerHTML = '<p>No hay escaneos disponibles.</p>';
               viewMapButton.style.display = 'none';
