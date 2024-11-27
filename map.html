@@ -132,138 +132,6 @@
     let markers = [];
     let routeControl = null;
 
-    // Verificar la autenticación y que sea admin
-    auth.onAuthStateChanged((user) => {
-      if (user) {
-        if (user.email.toLowerCase() !== 'admin@admin.com') {
-          // Si no es admin, redirigir a index.html
-          alert('Acceso denegado. Solo el administrador puede acceder a esta página.');
-          window.location.href = 'index.html';
-        } else {
-          // Cargar el mapa
-          initializeMap();
-        }
-      } else {
-        // Si no está autenticado, redirigir a index.html
-        alert('Por favor, inicia sesión primero.');
-        window.location.href = 'index.html';
-      }
-    });
-
-    // Manejar el logout
-    logoutButton.addEventListener('click', function() {
-      auth.signOut().then(() => {
-        window.location.href = 'index.html';
-      }).catch((error) => {
-        console.error('Error al cerrar sesión:', error);
-      });
-    });
-
-    // Función para inicializar el mapa
-    function initializeMap() {
-      // Crear el mapa centrado en el punto de inicio
-      map = L.map('map').setView([startPoint.lat, startPoint.lng], 14);
-
-      // Agregar capa de OpenStreetMap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
-
-      // Agregar marcador para el punto de inicio
-      const startMarker = L.marker([startPoint.lat, startPoint.lng], {
-        icon: L.divIcon({
-          className: 'start-marker'
-        }),
-        title: 'Punto de Inicio'
-      }).addTo(map).bindPopup('Punto de Inicio');
-
-      // Recuperar las IDs de los escaneos desde localStorage
-      const scanIDs = JSON.parse(localStorage.getItem('scanIDs')) || [];
-
-      if (scanIDs.length === 0) {
-        alert('No hay IDs de escaneos para mostrar en el mapa.');
-        return;
-      }
-
-      // Convertir las IDs a coordenadas y filtrar según el criterio
-      const validScanIDs = getValidScanIDs(scanIDs);
-      if (validScanIDs.length === 0) {
-        alert('No hay IDs que cumplan con los criterios para mapear.');
-        return;
-      }
-
-      // Convertir las IDs válidas a coordenadas y agregar marcadores
-      validScanIDs.forEach(id => {
-        const coords = idToCoordinates[id];
-        if (coords) {
-          const marker = L.marker([coords.lat, coords.lng]).addTo(map)
-            .bindPopup(`ID: ${id}<br>Coordenadas: ${coords.lat}, ${coords.lng}`);
-          markers.push(marker);
-        } else {
-          console.warn(`No se encontraron coordenadas para la ID: ${id}`);
-        }
-      });
-
-      if (markers.length === 0) {
-        alert('No se encontraron coordenadas válidas para las IDs proporcionadas.');
-        return;
-      }
-
-      // Ajustar la vista del mapa para mostrar todos los marcadores
-      const group = new L.featureGroup(markers);
-      group.addLayer(startMarker);
-      map.fitBounds(group.getBounds().pad(0.5));
-    }
-
-    // Función para obtener IDs válidas que fueron escaneadas tres veces el mismo día por tres diferentes emails
-    function getValidScanIDs(scanIDs) {
-      return new Promise((resolve, reject) => {
-        const scansRef = database.ref('scans');
-        scansRef.once('value')
-          .then((snapshot) => {
-            const scansData = snapshot.val();
-            if (!scansData) {
-              resolve([]);
-              return;
-            }
-
-            const currentDate = getCurrentDate();
-            const idCountMap = {};
-
-            // Iterar sobre cada usuario
-            Object.keys(scansData).forEach(userKey => {
-              const userEmail = userKey.replace(/,/g, '.'); // Convertir ',' de vuelta a '.'
-              const userScans = scansData[userKey];
-              Object.values(userScans).forEach(scan => {
-                const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
-                if (scanDate === currentDate) {
-                  const id = scan.id;
-                  if (!idCountMap[id]) {
-                    idCountMap[id] = new Set();
-                  }
-                  idCountMap[id].add(userEmail);
-                }
-              });
-            });
-
-            // Filtrar IDs que fueron escaneadas tres veces por tres emails diferentes
-            const validIDs = [];
-            Object.keys(idCountMap).forEach(id => {
-              if (idCountMap[id].size >= 3) {
-                validIDs.push(id);
-              }
-            });
-
-            resolve(validIDs);
-          })
-          .catch((error) => {
-            console.error('Error al obtener los escaneos para mapear:', error);
-            resolve([]);
-          });
-      });
-    }
-
     // Función para obtener la fecha actual en formato YYYY-MM-DD
     function getCurrentDate() {
       const today = new Date();
@@ -309,6 +177,134 @@
 
       return ordered;
     }
+
+    // Función para obtener IDs válidas que fueron escaneadas tres veces el mismo día por tres diferentes emails
+    async function getValidScanIDs(scanIDs) {
+      try {
+        const snapshot = await database.ref('scans').once('value');
+        const scansData = snapshot.val();
+
+        if (!scansData) {
+          return [];
+        }
+
+        const currentDate = getCurrentDate();
+        const idCountMap = {};
+
+        // Iterar sobre cada usuario
+        Object.keys(scansData).forEach(userKey => {
+          const userEmail = userKey.replace(/,/g, '.'); // Convertir ',' de vuelta a '.'
+          const userScans = scansData[userKey];
+          Object.values(userScans).forEach(scan => {
+            const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+            if (scanDate === currentDate) {
+              const id = scan.id;
+              if (!idCountMap[id]) {
+                idCountMap[id] = new Set();
+              }
+              idCountMap[id].add(userEmail);
+            }
+          });
+        });
+
+        // Filtrar IDs que fueron escaneadas tres veces por tres emails diferentes
+        const validIDs = [];
+        Object.keys(idCountMap).forEach(id => {
+          if (idCountMap[id].size >= 3) {
+            validIDs.push(id);
+          }
+        });
+
+        return validIDs;
+      } catch (error) {
+        console.error('Error al obtener los escaneos para mapear:', error);
+        return [];
+      }
+    }
+
+    // Función para inicializar el mapa
+    async function initializeMap() {
+      // Crear el mapa centrado en el punto de inicio
+      map = L.map('map').setView([startPoint.lat, startPoint.lng], 14);
+
+      // Agregar capa de OpenStreetMap
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+
+      // Agregar marcador para el punto de inicio
+      const startMarker = L.marker([startPoint.lat, startPoint.lng], {
+        icon: L.divIcon({
+          className: 'start-marker'
+        }),
+        title: 'Punto de Inicio'
+      }).addTo(map).bindPopup('Punto de Inicio');
+
+      // Recuperar las IDs de los escaneos desde localStorage
+      const scanIDs = JSON.parse(localStorage.getItem('scanIDs')) || [];
+
+      if (scanIDs.length === 0) {
+        alert('No hay IDs de escaneos para mostrar en el mapa.');
+        return;
+      }
+
+      // Obtener IDs válidas que cumplen con los criterios
+      const validScanIDs = await getValidScanIDs(scanIDs);
+      if (validScanIDs.length === 0) {
+        alert('No hay IDs que cumplan con los criterios para mapear.');
+        return;
+      }
+
+      // Convertir las IDs válidas a coordenadas y agregar marcadores
+      validScanIDs.forEach(id => {
+        const coords = idToCoordinates[id];
+        if (coords) {
+          const marker = L.marker([coords.lat, coords.lng]).addTo(map)
+            .bindPopup(`ID: ${id}<br>Coordenadas: ${coords.lat}, ${coords.lng}`);
+          markers.push(marker);
+        } else {
+          console.warn(`No se encontraron coordenadas para la ID: ${id}`);
+        }
+      });
+
+      if (markers.length === 0) {
+        alert('No se encontraron coordenadas válidas para las IDs proporcionadas.');
+        return;
+      }
+
+      // Ajustar la vista del mapa para mostrar todos los marcadores
+      const group = new L.featureGroup(markers);
+      group.addLayer(startMarker);
+      map.fitBounds(group.getBounds().pad(0.5));
+    }
+
+    // Verificar la autenticación y que sea admin
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        if (user.email.toLowerCase() !== 'admin@admin.com') {
+          // Si no es admin, redirigir a index.html
+          alert('Acceso denegado. Solo el administrador puede acceder a esta página.');
+          window.location.href = 'index.html';
+        } else {
+          // Cargar el mapa
+          initializeMap();
+        }
+      } else {
+        // Si no está autenticado, redirigir a index.html
+        alert('Por favor, inicia sesión primero.');
+        window.location.href = 'index.html';
+      }
+    });
+
+    // Manejar el logout
+    logoutButton.addEventListener('click', function() {
+      auth.signOut().then(() => {
+        window.location.href = 'index.html';
+      }).catch((error) => {
+        console.error('Error al cerrar sesión:', error);
+      });
+    });
 
     // Manejar el clic en "Armar ruta"
     armarRutaButton.addEventListener('click', async function() {
