@@ -59,6 +59,7 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      font-size: 16px;
     }
     #armar-ruta-button:hover {
       background-color: #45a049;
@@ -96,6 +97,7 @@
     const firebaseConfig = {
       apiKey: "AIzaSyD3NeE_fXUivRwXoz3c1NwyfnzRx1Xfmag",
       authDomain: "qrtrashy.firebaseapp.com",
+      databaseURL: "https://qrtrashy-default-rtdb.firebaseio.com/",
       projectId: "qrtrashy",
       storageBucket: "qrtrashy.appspot.com",
       messagingSenderId: "986627738409",
@@ -116,8 +118,6 @@
       "12121212": { lat: -20.24637570539346, lng: -70.12831954907416 },
       "19991999": { lat: -20.210998981315534, lng: -70.14314459561021 },
       "13371337": { lat: -20.219993105833403, lng: -70.13896236034685 },
-      "45567678": { lat: -20.219993105833403, lng: -70.13896236034685 },
-      "69696969": { lat: -20.29074553762411, lng: -70.1189098638138 },
       // Agrega más mappings según tus necesidades
     };
 
@@ -182,8 +182,15 @@
         return;
       }
 
-      // Convertir las IDs a coordenadas y agregar marcadores
-      scanIDs.forEach(id => {
+      // Convertir las IDs a coordenadas y filtrar según el criterio
+      const validScanIDs = getValidScanIDs(scanIDs);
+      if (validScanIDs.length === 0) {
+        alert('No hay IDs que cumplan con los criterios para mapear.');
+        return;
+      }
+
+      // Convertir las IDs válidas a coordenadas y agregar marcadores
+      validScanIDs.forEach(id => {
         const coords = idToCoordinates[id];
         if (coords) {
           const marker = L.marker([coords.lat, coords.lng]).addTo(map)
@@ -203,6 +210,63 @@
       const group = new L.featureGroup(markers);
       group.addLayer(startMarker);
       map.fitBounds(group.getBounds().pad(0.5));
+    }
+
+    // Función para obtener IDs válidas que fueron escaneadas tres veces el mismo día por tres diferentes emails
+    function getValidScanIDs(scanIDs) {
+      return new Promise((resolve, reject) => {
+        const scansRef = database.ref('scans');
+        scansRef.once('value')
+          .then((snapshot) => {
+            const scansData = snapshot.val();
+            if (!scansData) {
+              resolve([]);
+              return;
+            }
+
+            const currentDate = getCurrentDate();
+            const idCountMap = {};
+
+            // Iterar sobre cada usuario
+            Object.keys(scansData).forEach(userKey => {
+              const userEmail = userKey.replace(/,/g, '.'); // Convertir ',' de vuelta a '.'
+              const userScans = scansData[userKey];
+              Object.values(userScans).forEach(scan => {
+                const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+                if (scanDate === currentDate) {
+                  const id = scan.id;
+                  if (!idCountMap[id]) {
+                    idCountMap[id] = new Set();
+                  }
+                  idCountMap[id].add(userEmail);
+                }
+              });
+            });
+
+            // Filtrar IDs que fueron escaneadas tres veces por tres emails diferentes
+            const validIDs = [];
+            Object.keys(idCountMap).forEach(id => {
+              if (idCountMap[id].size >= 3) {
+                validIDs.push(id);
+              }
+            });
+
+            resolve(validIDs);
+          })
+          .catch((error) => {
+            console.error('Error al obtener los escaneos para mapear:', error);
+            resolve([]);
+          });
+      });
+    }
+
+    // Función para obtener la fecha actual en formato YYYY-MM-DD
+    function getCurrentDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
 
     // Función para calcular la distancia Euclidiana entre dos puntos
@@ -243,17 +307,32 @@
     }
 
     // Manejar el clic en "Armar ruta"
-    armarRutaButton.addEventListener('click', function() {
+    armarRutaButton.addEventListener('click', async function() {
       if (markers.length === 0) {
         alert('No hay puntos en el mapa para crear una ruta.');
         return;
       }
 
-      // Extraer las coordenadas de los marcadores
-      const scannedPoints = markers.map(marker => {
-        const latlng = marker.getLatLng();
-        return { lat: latlng.lat, lng: latlng.lng };
+      // Obtener las IDs válidas que cumplen con los criterios
+      const validScanIDs = await getValidScanIDs(JSON.parse(localStorage.getItem('scanIDs')) || []);
+      if (validScanIDs.length === 0) {
+        alert('No hay IDs que cumplan con los criterios para armar una ruta.');
+        return;
+      }
+
+      // Extraer las coordenadas de los marcadores válidos
+      const scannedPoints = [];
+      validScanIDs.forEach(id => {
+        const coords = idToCoordinates[id];
+        if (coords) {
+          scannedPoints.push({ lat: coords.lat, lng: coords.lng });
+        }
       });
+
+      if (scannedPoints.length === 0) {
+        alert('No se encontraron coordenadas válidas para las IDs proporcionadas.');
+        return;
+      }
 
       // Ordenar los puntos escaneados usando el algoritmo de Vecino Más Cercano
       const orderedPoints = nearestNeighbor(startPoint, scannedPoints);
